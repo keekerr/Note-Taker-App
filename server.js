@@ -1,98 +1,91 @@
-// importing dependencies to interact with the front end
+// Creates necessary Dependencies.
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
 
-// creating a server
-const app = express();
+// Reads a JavaScript file, executes it, and then proceeds to return the export JSON objects.
+const notesData = require("./db/db.json");
 
-// Setting a port listener
+// Sets Port.
 const PORT = process.env.PORT || 3001;
 
-//  createNoteData Array
-let createNoteData = [];
+// This will create an express server.
+const app = express();
 
-// Setting up middleware body parsing, static, and route
+app.use(express.static("public"));
+
+app.get("/api/notes", (req, res) => {
+    res.json(notesData.slice(1));
+});
+
+// This parses string or array.
+app.use(express.urlencoded({extended: true}));
+
+// This parses JSON data.
 app.use(express.json());
-app.use(
-  express.urlencoded({
-    extended: true,
-  })
-);
-app.use(express.static(path.join(__dirname, "public")));
 
-// api call response for the notes, an having results sent to browser in the form of an array of object
-app.get("/api/notes", function (err, res) {
-  try {
-    createNoteData = fs.readFileSync("db/db.json", "utf8");
-    console.log("Hello from the SERVER!");
-    createNoteData = JSON.parse(createNoteData);
-  } catch (err) {
-    console.log("\n error (catch err app.get):");
-    console.log(err);
-  }
-  res.json(createNoteData);
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "./public/index.html"));
 });
 
-// this section writes the new note to the json file and sending back to the browser
-app.post("/api/notes", function (req, res) {
-  try {
-    createNoteData = fs.readFileSync("./db/db.json", "utf8");
-    console.log(createNoteData);
-    createNoteData = JSON.parse(createNoteData);
-    req.body.id = createNoteData.length;
-    createNoteData.push(req.body);
-    createNoteData = JSON.stringify(createNoteData);
-    fs.writeFile("./db/db.json", createNoteData, "utf8", function (err) {
-      if (err) throw err;
-    });
-
-    res.json(JSON.parse(createNoteData));
-  } catch (err) {
-    throw err;
-    console.error(err);
-  }
+app.get("/notes", (req, res) => {
+    res.sendFile(path.join(__dirname, "./public/notes.html"));
 });
 
-// Deleting a note and reading the json file | writing the new notes to the file and sending back to the browser
-
-app.delete("/api/notes/:id", function (req, res) {
-  try {
-    createNoteData = fs.readFileSync("./db/db.json", "utf8");
-    createNoteData = JSON.parse(createNoteData);
-    createNoteData = createNoteData.filter(function (note) {
-      return note.id != req.params.id;
-    });
-    createNoteData = JSON.stringify(createNoteData);
-
-    fs.writeFile("./db/db.json", createNoteData, "utf8", function (err) {
-      if (err) throw err;
-    });
-
-    res.send(JSON.parse(createNoteData));
-  } catch (err) {
-    throw err;
-    console.log(err);
-  }
+app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "./public/index.html"));
 });
 
-// HTML GET Requests
+// This function will allow user to save new notes.
+function createNewNotes(body, notesArray) {
+    const newNote = body;
+    if (!Array.isArray(notesArray))
+        notesArray = [];
+    
+    if (notesArray.length === 0)
+        notesArray.push(0);
 
-// when the Get started button is clicked display the note.html Web page
-app.get("/notes", function (req, res) {
-  res.sendFile(path.join(__dirname, "public/notes.html"));
+    body.id = notesArray[0];
+    notesArray[0]++;
+
+    notesArray.push(newNote);
+    fs.writeFileSync(
+        path.join(__dirname, './db/db.json'),
+        JSON.stringify(notesArray, null, 2)
+    );
+    return newNote;
+}
+
+//Post method will bring user input to back-end.  
+app.post("/api/notes", (req, res) => {
+    const newNote = createNewNotes(req.body, notesData);
+    res.json(newNote);
 });
 
-// If no matching route is found, then default to home
-app.get("*", function (req, res) {
-  res.sendFile(path.join(__dirname, "public/index.html"));
+// This function will allow user to delete previous notes.
+function deleteExistingNotes(id, notesArray) {
+    for (let i = 0; i < notesArray.length; i++) {
+        let note = notesArray[i];
+
+        if (note.id == id) {
+            notesArray.splice(i, 1);
+            fs.writeFileSync(
+                path.join(__dirname, './db/db.json'),
+                JSON.stringify(notesArray, null, 2)
+            );
+
+            break;
+        }
+    }
+}
+
+// Delete method will allow user to delete previous saved notes.
+app.delete('/api/notes/:id', (req, res) => {
+    deleteExistingNotes(req.params.id, notesData);
+    res.json(true);
 });
 
-app.get("/api/notes", function (req, res) {
-  return res.sendFile(path.json(__dirname, "db/db.json"));
-});
-
-// Start the server on the port
-app.listen(PORT, function () {
-  console.log("SERVER IS LISTENING: " + PORT);
+// Listener.
+app.listen(PORT, () => {
+    console.log(`The Server is listening on PORT: ${PORT}`);
 });
